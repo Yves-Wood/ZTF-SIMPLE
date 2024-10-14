@@ -310,6 +310,10 @@ def txt_to_csv(file_name):
     df.columns = df.iloc[0].str.rstrip(',')  # Assume the first row is the header
     df = df[1:]  # Drop the header row from the data
 
+    # Filter out rows where 'procstatus' is not '0'
+    if 'procstatus' in df.columns:
+        df = df[df['procstatus'] == '0']
+
     # Sort the DataFrame by the 'filter' column if it exists
     if 'filter' in df.columns:
         df = df.sort_values(by='filter', key=lambda col: col.map({'ZTF_g': 0, 'ZTF_r': 1, 'ZTF_i': 2}))
