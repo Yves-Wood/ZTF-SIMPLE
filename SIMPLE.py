@@ -60,8 +60,6 @@ def plot_combined_figures(input_file, min_per, max_per, error_enable, grid_enabl
     else:
         band_name = 'zg'
 
-
-
     # Sets the font
     plt.rcParams['font.family'] = 'serif'
     plt.rcParams['font.size'] = 15
