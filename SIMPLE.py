@@ -9,8 +9,7 @@ import matplotlib.ticker as ticker
 def process_csv_files_in_all_parent_dirs():
     """
     Processes CSV files in all parent directories. 
-    Each parent directory represents an object, and figures are generated for each CSV. 
-    This is hell.
+    Each parent directory represents an object, and figures are generated for each CSV.
     """
     # Get the directory of the current script
     base_directory = os.path.dirname(os.path.abspath(__file__))
