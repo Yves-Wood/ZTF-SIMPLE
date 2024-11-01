@@ -9,7 +9,8 @@ import matplotlib.ticker as ticker
 def process_csv_files_in_all_parent_dirs():
     """
     Processes CSV files in all parent directories. 
-    Each parent directory represents an object, and figures are generated for each CSV.
+    Each parent directory represents an object, and figures are generated for each CSV. 
+    This is hell.
     """
     # Get the directory of the current script
     base_directory = os.path.dirname(os.path.abspath(__file__))
@@ -59,6 +60,8 @@ def plot_combined_figures(input_file, min_per, max_per, error_enable, grid_enabl
     else:
         band_name = 'zg'
 
+
+
     # Sets the font
     plt.rcParams['font.family'] = 'serif'
     plt.rcParams['font.size'] = 15
@@ -79,10 +82,20 @@ def plot_combined_figures(input_file, min_per, max_per, error_enable, grid_enabl
     y_data = df_filtered["mag"]
     mag_err = df_filtered["magerr"]
 
-    # Plot scatter plot in the first subplot
-    axs[0].scatter(x_data, y_data, color='cornflowerblue')
+    # 
+    df_filtered['magerr'].replace("", np.nan, inplace=True)
+
+    # Separate data based on whether magerr is NaN
+    no_error_mask = df_filtered['magerr'].isna()
+    with_error_mask = ~no_error_mask
+
+    # Plot points with empty magerr as red, upside-down triangles
+    axs[0].scatter(x_data[no_error_mask], y_data[no_error_mask], color='red', marker='v', label='No Error Data')
+
+    # Plot points with non-empty magerr as usual
+    axs[0].scatter(x_data[with_error_mask], y_data[with_error_mask], color='cornflowerblue')
     if error_enable:
-        axs[0].errorbar(x_data, y_data, yerr=mag_err, fmt='none', ecolor='cornflowerblue', capsize=5, label='Y-Errors')
+        axs[0].errorbar(x_data[with_error_mask], y_data[with_error_mask], yerr=mag_err[with_error_mask].astype(float), fmt='none', ecolor='cornflowerblue', capsize=5, label='Y-Errors')
     axs[0].invert_yaxis()
     axs[0].set_xlabel("mjd")
     axs[0].set_ylabel(f"{band_name} (mag)")
@@ -133,10 +146,18 @@ def plot_combined_figures(input_file, min_per, max_per, error_enable, grid_enabl
 
     rounded_period = round(max_power_period, 3)
 
-    # Plot phase-folded graph in the third subplot
-    axs[2].scatter(phase_extended, flux_extended, color='cornflowerblue')
+    # Separate data based on whether magerr is NaN
+    no_error_mask_phase = np.isnan(mag_err_extended)
+    with_error_mask_phase = ~no_error_mask_phase
+
+    # Plot points where magerr is NaN as red, upside-down triangles
+    axs[2].scatter(phase_extended[no_error_mask_phase], flux_extended[no_error_mask_phase], color='red', marker='v', label='No Error Data')
+
+    # Plot points with non-empty magerr as usual
+    axs[2].scatter(phase_extended[with_error_mask_phase], flux_extended[with_error_mask_phase], color='cornflowerblue')
     if error_enable:
-        axs[2].errorbar(phase_extended, flux_extended, yerr=mag_err_extended, fmt='none', ecolor='cornflowerblue', capsize=5, label='Y-Errors')
+        axs[2].errorbar(phase_extended[with_error_mask_phase], flux_extended[with_error_mask_phase], yerr=mag_err_extended[with_error_mask_phase], 
+                    fmt='none', ecolor='cornflowerblue', capsize=5, label='Y-Errors')
     axs[2].set_xlim(0, 2)
     axs[2].set_xlabel('Phase')
     axs[2].set_ylabel(f'{band_name} (mag)')
@@ -323,6 +344,7 @@ def txt_to_csv(file_name):
     csv_file_name = os.path.join(folder_name, file_name.replace('.txt', '.csv'))
     df.to_csv(csv_file_name, index=False)
     print(f"Converted {file_name} to {csv_file_name}")
+
 
 def batch_convert_txt_to_csv():
     # Get the current directory where the program is located
