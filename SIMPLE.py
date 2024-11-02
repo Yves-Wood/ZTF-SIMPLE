@@ -357,7 +357,7 @@ def batch_convert_txt_to_csv():
 
 def check_query_type():
     global index_value
-    multi_or_single = input('Are the .txt files from the single object query service, or multi object query? S/M')
+    multi_or_single = input('Are the .txt files from the single object query service, or multi object query? S/M\n')
 
     if multi_or_single.lower() == 'm':
         index_value = 52
