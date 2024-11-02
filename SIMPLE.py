@@ -307,7 +307,7 @@ def txt_to_csv(file_name):
         lines = file.readlines()
 
     # Remove the first 56 rows and the 58th row (which is now at index 2) and the last row (index -1)
-    cleaned_lines = lines[55:]  # Start from the 57th row (index 56)
+    cleaned_lines = lines[int(index_value):]  # Start from the 57th row (index 56).
 
     if len(cleaned_lines) > 1:  # Ensure there are enough lines
         cleaned_lines.pop(1)  # Remove the blank row
@@ -355,11 +355,24 @@ def batch_convert_txt_to_csv():
         if filename.endswith('.txt'):
             txt_to_csv(filename)
 
-# Set default values for min_per, max_per, and error_enable
+def check_query_type():
+    global index_value
+    multi_or_single = input('Are the .txt files from the single object query service, or multi object query? S/M')
+
+    if multi_or_single.lower() == 'm':
+        index_value = 52
+    else:
+        index_value = 55
+
+
+# Set default values for min_per, max_per, error_enable, and index_value
 min_per = None
 max_per = None
 error_enable = True
 grid_enable = True
+index_value = 0
+
+check_query_type()
 
 batch_convert_txt_to_csv()
 
