@@ -309,6 +309,7 @@ def txt_to_csv(file_name):
     # Remove the first 56 rows and the 58th row (which is now at index 2) and the last row (index -1)
     cleaned_lines = lines[int(index_value):]  # Start from the 57th row (index 56).
 
+    # Safeguard: Ensure there are enough lines before popping
     if len(cleaned_lines) > 1:  # Ensure there are enough lines
         cleaned_lines.pop(1)  # Remove the blank row
 
@@ -321,12 +322,20 @@ def txt_to_csv(file_name):
     # Process lines (split by spaces, tabs, or whatever delimiter your file uses)
     data = [line.strip().split() for line in cleaned_lines]
 
-    # Create a DataFrame
+    # Create a DataFrame if data exists
+    if not data or len(data) < 2:  # Ensure there are at least two rows: header and one data row
+        print(f"Error: {file_name} has insufficient data to process.")
+        return
+
     df = pd.DataFrame(data)
 
     # Remove any trailing commas from column names (if present)
-    df.columns = df.iloc[0].str.rstrip(',')  # Assume the first row is the header
-    df = df[1:]  # Drop the header row from the data
+    if len(df) > 0:  # Ensure there is at least one row to set columns
+        df.columns = df.iloc[0].str.rstrip(',')  # Assume the first row is the header
+        df = df[1:]  # Drop the header row from the data
+    else:
+        print(f"Error: {file_name} resulted in an empty DataFrame after processing.")
+        return
 
     # Filter out rows where 'procstatus' is not '0'
     if 'procstatus' in df.columns:
@@ -342,8 +351,12 @@ def txt_to_csv(file_name):
 
     # Save to CSV in the new folder with the same name but .csv extension
     csv_file_name = os.path.join(folder_name, file_name.replace('.txt', '.csv'))
-    df.to_csv(csv_file_name, index=False)
-    print(f"Converted {file_name} to {csv_file_name}")
+
+    try:
+        df.to_csv(csv_file_name, index=False)
+        print(f"Converted {file_name} to {csv_file_name}")
+    except Exception as e:
+        print(f"Error saving {csv_file_name}: {e}")
 
 
 def batch_convert_txt_to_csv():
