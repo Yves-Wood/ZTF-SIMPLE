@@ -45,141 +45,132 @@ def is_valid_csv_name(filename):
     return False
 
 def plot_combined_figures(input_file, min_per, max_per, error_enable, grid_enable, parent_path):
-    print(f'Generating combined figure for {input_file}...')
+    try:
+        print(f'Generating combined figure for {input_file}...')
 
+        # Creates the base name
+        base_name = os.path.splitext(input_file)[0]
+        band_name = os.path.basename(base_name)
+        object_name = os.path.basename(parent_path)
 
-    # Creates the base name
-    base_name = os.path.splitext(input_file)[0]
-    band_name = os.path.basename(base_name)
-    object_name = os.path.basename(parent_path)
+        if band_name == 'processed_ZTF_i':
+            band_name = 'zi'
+        elif band_name == 'processed_ZTF_r':
+            band_name = 'zr'
+        else:
+            band_name = 'zg'
 
-    if band_name == 'processed_ZTF_i':
-        band_name = 'zi'
-    elif band_name == 'processed_ZTF_r':
-        band_name = 'zr'
-    else:
-        band_name = 'zg'
+        # Sets the font
+        plt.rcParams['font.family'] = 'serif'
+        plt.rcParams['font.size'] = 15
 
+        # Create a figure with 3 subplots (3 rows, 1 column)
+        fig, axs = plt.subplots(3, 1, figsize=(11, 15))
 
+        fig.suptitle(f"{band_name} analysis of {object_name}")
 
-    # Sets the font
-    plt.rcParams['font.family'] = 'serif'
-    plt.rcParams['font.size'] = 15
+        # Read the CSV file into a DataFrame
+        df = pd.read_csv(input_file)
 
-    # Create a figure with 3 subplots (3 rows, 1 column)
-    fig, axs = plt.subplots(3, 1, figsize=(11, 15))  # Adjust figure size as needed
+        # Filter out rows where catflags > 0
+        df_filtered = df[df['catflags'] == 0]
 
-    fig.suptitle(f"{band_name} analysis of {object_name}")
+        # Extract data for scatter plot
+        x_data = df_filtered["mjd"]
+        y_data = df_filtered["mag"]
+        mag_err = df_filtered["magerr"]
 
-    # Read the CSV file into a DataFrame
-    df = pd.read_csv(input_file)
+        df_filtered['magerr'].replace("", np.nan, inplace=True)
 
-    # Filter out rows where catflags > 0
-    df_filtered = df[df['catflags'] == 0]
+        # Separate data based on whether magerr is NaN
+        no_error_mask = df_filtered['magerr'].isna()
+        with_error_mask = ~no_error_mask
 
-    # Extract data for scatter plot
-    x_data = df_filtered["mjd"]
-    y_data = df_filtered["mag"]
-    mag_err = df_filtered["magerr"]
+        # Plot points with empty magerr as red, upside-down triangles
+        axs[0].scatter(x_data[no_error_mask], y_data[no_error_mask], color='red', marker='v', label='No Error Data')
 
-    # 
-    df_filtered['magerr'].replace("", np.nan, inplace=True)
+        # Plot points with non-empty magerr as usual
+        axs[0].scatter(x_data[with_error_mask], y_data[with_error_mask], color='cornflowerblue')
+        if error_enable:
+            axs[0].errorbar(x_data[with_error_mask], y_data[with_error_mask], yerr=mag_err[with_error_mask].astype(float), fmt='none', ecolor='cornflowerblue', capsize=5, label='Y-Errors')
+        axs[0].invert_yaxis()
+        axs[0].set_xlabel("mjd")
+        axs[0].set_ylabel(f"{band_name} (mag)")
+        axs[0].set_title('')
+        if grid_enable:
+            axs[0].grid(True)
+        else:
+            axs[0].grid(False)
 
-    # Separate data based on whether magerr is NaN
-    no_error_mask = df_filtered['magerr'].isna()
-    with_error_mask = ~no_error_mask
+        axs[0].yaxis.set_major_locator(ticker.MaxNLocator(nbins=5))
 
-    # Plot points with empty magerr as red, upside-down triangles
-    axs[0].scatter(x_data[no_error_mask], y_data[no_error_mask], color='red', marker='v', label='No Error Data')
+        # Perform Lomb-Scargle periodogram analysis using filtered data
+        time = df_filtered["mjd"].values
+        flux = df_filtered["mag"].values
+        frequency, power = LombScargle(time, flux).autopower()
 
-    # Plot points with non-empty magerr as usual
-    axs[0].scatter(x_data[with_error_mask], y_data[with_error_mask], color='cornflowerblue')
-    if error_enable:
-        axs[0].errorbar(x_data[with_error_mask], y_data[with_error_mask], yerr=mag_err[with_error_mask].astype(float), fmt='none', ecolor='cornflowerblue', capsize=5, label='Y-Errors')
-    axs[0].invert_yaxis()
-    axs[0].set_xlabel("mjd")
-    axs[0].set_ylabel(f"{band_name} (mag)")
-    axs[0].set_title('')
-    if grid_enable:
-        axs[0].grid(True)
-    else:
-        axs[0].grid(False)
+        # Find the index of the maximum power
+        max_power_index = np.argmax(power)
 
-    #Sets amount of Y- axis ticks
-    axs[0].yaxis.set_major_locator(ticker.MaxNLocator(nbins=5))
+        # Retrieve the corresponding frequency
+        max_power_frequency = frequency[max_power_index]
 
-    # Perform Lomb-Scargle periodogram analysis using filtered data
-    time = df_filtered["mjd"].values
-    flux = df_filtered["mag"].values
-    frequency, power = LombScargle(time, flux).autopower()
+        # Calculate the period (inverse of frequency)
+        max_power_period = 1 / max_power_frequency
 
-    # Find the index of the maximum power
-    max_power_index = np.argmax(power)
+        # Plot periodogram in the second subplot
+        axs[1].plot(1 / frequency, power, color='cornflowerblue')
+        if min_per is not None and max_per is not None:
+            axs[1].set_xlim(min_per, max_per)
+        axs[1].set_ylim(bottom=0)
+        axs[1].set_xlabel('Period (days)')
+        axs[1].set_ylabel('Power')
+        axs[1].set_xscale('log')
+        axs[1].yaxis.set_major_locator(ticker.MaxNLocator(nbins=5))
 
-    # Retrieve the corresponding frequency
-    max_power_frequency = frequency[max_power_index]
+        # Calculate phase for the phase-folded graph using filtered data
+        phase = (time / max_power_period) % 1
+        sorted_indices = np.argsort(phase)
+        phase_sorted = phase[sorted_indices]
+        flux_sorted = flux[sorted_indices]
+        magerr_sorted = mag_err.values[sorted_indices]
 
-    # Calculate the period (inverse of frequency)
-    max_power_period = 1 / max_power_frequency
+        phase_extended = np.concatenate([phase_sorted, phase_sorted + 1])
+        flux_extended = np.concatenate([flux_sorted, flux_sorted])
+        mag_err_extended = np.concatenate([magerr_sorted, magerr_sorted])
 
-    # Plot periodogram in the second subplot
-    axs[1].plot(1 / frequency, power, color='cornflowerblue')
-    if min_per is not None and max_per is not None:
-        axs[1].set_xlim(min_per, max_per)
-    axs[1].set_ylim(bottom=0)
-    axs[1].set_xlabel('Period (days)')
-    axs[1].set_ylabel('Power')
-    axs[1].set_xscale('log')
-    axs[1].yaxis.set_major_locator(ticker.MaxNLocator(nbins=5))
+        rounded_period = round(max_power_period, 3)
 
-    # Calculate phase for the phase-folded graph using filtered data
-    phase = (time / max_power_period) % 1
-    sorted_indices = np.argsort(phase)
-    phase_sorted = phase[sorted_indices]
-    flux_sorted = flux[sorted_indices]
-    magerr_sorted = mag_err.values[sorted_indices]  # Ensure mag_err matches filtered and sorted indices
+        no_error_mask_phase = np.isnan(mag_err_extended)
+        with_error_mask_phase = ~no_error_mask_phase
 
-    # Extend the phase-folded graph to a phase of 2
-    phase_extended = np.concatenate([phase_sorted, phase_sorted + 1])
-    flux_extended = np.concatenate([flux_sorted, flux_sorted])
-    mag_err_extended = np.concatenate([magerr_sorted, magerr_sorted])
+        axs[2].scatter(phase_extended[no_error_mask_phase], flux_extended[no_error_mask_phase], color='red', marker='v', label='No Error Data')
+        axs[2].scatter(phase_extended[with_error_mask_phase], flux_extended[with_error_mask_phase], color='cornflowerblue')
+        if error_enable:
+            axs[2].errorbar(phase_extended[with_error_mask_phase], flux_extended[with_error_mask_phase], yerr=mag_err_extended[with_error_mask_phase],
+                        fmt='none', ecolor='cornflowerblue', capsize=5, label='Y-Errors')
+        axs[2].set_xlim(0, 2)
+        axs[2].set_xlabel('Phase')
+        axs[2].set_ylabel(f'{band_name} (mag)')
+        axs[2].set_title(f'Period = {rounded_period} days')
+        axs[2].invert_yaxis()
+        axs[2].yaxis.set_major_locator(ticker.MaxNLocator(nbins=5))
 
-    rounded_period = round(max_power_period, 3)
+        plt.tight_layout()
+        output_file = os.path.join(os.path.dirname(input_file), f"{base_name}_combined_figure.png")
+        plt.savefig(output_file)
 
-    # Separate data based on whether magerr is NaN
-    no_error_mask_phase = np.isnan(mag_err_extended)
-    with_error_mask_phase = ~no_error_mask_phase
-
-    # Plot points where magerr is NaN as red, upside-down triangles
-    axs[2].scatter(phase_extended[no_error_mask_phase], flux_extended[no_error_mask_phase], color='red', marker='v', label='No Error Data')
-
-    # Plot points with non-empty magerr as usual
-    axs[2].scatter(phase_extended[with_error_mask_phase], flux_extended[with_error_mask_phase], color='cornflowerblue')
-    if error_enable:
-        axs[2].errorbar(phase_extended[with_error_mask_phase], flux_extended[with_error_mask_phase], yerr=mag_err_extended[with_error_mask_phase], 
-                    fmt='none', ecolor='cornflowerblue', capsize=5, label='Y-Errors')
-    axs[2].set_xlim(0, 2)
-    axs[2].set_xlabel('Phase')
-    axs[2].set_ylabel(f'{band_name} (mag)')
-    axs[2].set_title(f'Period = {rounded_period} days')
-    axs[2].invert_yaxis()
-    axs[2].yaxis.set_major_locator(ticker.MaxNLocator(nbins=5))
-
-    # Adjust layout and save the combined figure
-    plt.tight_layout()
-    output_file = os.path.join(os.path.dirname(input_file), f"{base_name}_combined_figure.png")
-    plt.savefig(output_file)
-
-    #Creates a .txt file that saves results
-    text_output_file = os.path.join(parent_path, f"{object_name}_{band_name}_analysis.txt")
-    with open(text_output_file, 'a') as f:
-        f.write(f"Object: {object_name}\n")
-        f.write(f"Spreadsheet: {band_name}\n")
-        f.write(f"Power: {round(power[max_power_index], 3)}\n")
-        f.write(f"Period (d): {rounded_period}\n")
-        f.write("\n")  # Add a new line to separate entries
-    
-    print(f"Analysis results saved to {text_output_file}")
+        text_output_file = os.path.join(parent_path, f"{object_name}_{band_name}_analysis.txt")
+        with open(text_output_file, 'a') as f:
+            f.write(f"Object: {object_name}\n")
+            f.write(f"Spreadsheet: {band_name}\n")
+            f.write(f"Power: {round(power[max_power_index], 3)}\n")
+            f.write(f"Period (d): {rounded_period}\n")
+            f.write("\n")
+        
+        print(f"Analysis results saved to {text_output_file}")
+    except Exception as e:
+        print(f"An error occurred while processing {input_file}: {e}")
 
 def process_csv_files():
     # Processes CSV files in all parent directories. Each parent directory represents an object, and figures are generated for each CSV
